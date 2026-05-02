@@ -1069,11 +1069,8 @@
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
                             <label class="block text-charcoal-400 text-xs tracking-wider uppercase mb-3" data-en="Brand" data-ar="الماركة">Brand</label>
-                            <div class="flex flex-wrap gap-2">
+                            <div class="flex flex-wrap gap-2" id="dynamicBrandFilters">
                                 <button onclick="filterCars('brand', 'all')" class="filter-btn active px-4 py-2 border border-charcoal-700 rounded-sm text-sm text-charcoal-300" data-en="All" data-ar="الكل">All</button>
-                                <button onclick="filterCars('brand', 'maybach')" class="filter-btn px-4 py-2 border border-charcoal-700 rounded-sm text-sm text-charcoal-300">Mercedes-Maybach</button>
-                                <button onclick="filterCars('brand', 'rollsroyce')" class="filter-btn px-4 py-2 border border-charcoal-700 rounded-sm text-sm text-charcoal-300">Rolls-Royce</button>
-                                <button onclick="filterCars('brand', 'bentley')" class="filter-btn px-4 py-2 border border-charcoal-700 rounded-sm text-sm text-charcoal-300">Bentley</button>
                             </div>
                         </div>
                         <div>
@@ -1368,6 +1365,72 @@
         const db = firebase.firestore();
         // ==================== DATA ====================
         let cars = [];
+        let brandsMap = {};
+        let siteSettings = {};
+
+        async function fetchBrands() {
+            try {
+                const snapshot = await db.collection('brands').get();
+                const container = document.getElementById('dynamicBrandFilters');
+                // Keep the "All" button
+                let html = `<button onclick="filterCars('brand', 'all')" class="filter-btn active px-4 py-2 border border-charcoal-700 rounded-sm text-sm text-charcoal-300" data-en="All" data-ar="الكل">All</button>`;
+                
+                snapshot.forEach(doc => {
+                    brandsMap[doc.id] = doc.data().displayName;
+                    html += `<button onclick="filterCars('brand', '${doc.id}')" class="filter-btn px-4 py-2 border border-charcoal-700 rounded-sm text-sm text-charcoal-300">${doc.data().displayName}</button>`;
+                });
+                if(container) container.innerHTML = html;
+                
+                // Re-render cars if they are already fetched
+                if (cars.length > 0) renderCars();
+            } catch (error) {
+                console.error("Error fetching brands:", error);
+            }
+        }
+
+        async function fetchSettings() {
+            try {
+                const doc = await db.collection('settings').doc('general').get();
+                if (doc.exists) {
+                    siteSettings = doc.data();
+                    applySettings();
+                }
+            } catch (error) {
+                console.error("Error fetching settings:", error);
+            }
+        }
+
+        function applySettings() {
+            if (siteSettings.heroTitle) {
+                const titleEl = document.querySelector('h1[data-en="The Pinnacle of Automotive Luxury"]');
+                if (titleEl) {
+                    titleEl.textContent = siteSettings.heroTitle;
+                    // Remove translation data so it doesn't get overridden by language toggle
+                    titleEl.removeAttribute('data-en');
+                    titleEl.removeAttribute('data-ar');
+                }
+            }
+            if (siteSettings.phone) {
+                document.querySelectorAll('a[href^="tel:"]').forEach(el => {
+                    el.href = `tel:${siteSettings.phone.replace(/[^0-9+]/g, '')}`;
+                    // If it's a display phone element
+                    if (el.textContent.includes('+966')) el.textContent = siteSettings.phone;
+                });
+            }
+            if (siteSettings.whatsapp) {
+                document.querySelectorAll('a[href^="https://wa.me/"]').forEach(el => {
+                    el.href = `https://wa.me/${siteSettings.whatsapp}`;
+                });
+            }
+            if (siteSettings.aboutEn) {
+                const aboutEl = document.querySelector('#about p.text-charcoal-300');
+                if (aboutEl) {
+                    aboutEl.textContent = siteSettings.aboutEn;
+                    aboutEl.removeAttribute('data-en');
+                    aboutEl.removeAttribute('data-ar');
+                }
+            }
+        }
 
         async function fetchCars() {
             try {
@@ -1627,7 +1690,9 @@
                 initLineDraw();
             }, 2000);
 
-            // Populate inventory
+            // Populate inventory and dynamic data
+            fetchSettings();
+            fetchBrands();
             fetchCars();
 
             // Navbar scroll effect
@@ -1747,7 +1812,7 @@
                         </div>
                     </div>
                     <div class="px-2">
-                        <p class="text-gold-500 text-xs tracking-[0.3em] uppercase mb-2">${car.brand === 'maybach' ? 'Mercedes-Maybach' : car.brand === 'rollsroyce' ? 'Rolls-Royce' : 'Bentley'}</p>
+                        <p class="text-gold-500 text-xs tracking-[0.3em] uppercase mb-2">${brandsMap[car.brand] || car.brand}</p>
                         <h3 class="font-serif text-2xl text-white mb-2">${car.name}</h3>
                         <p class="text-charcoal-400 text-sm mb-3">${car.year} • ${car.mileage}</p>
                         <p class="font-serif text-2xl text-gold-300">${car.priceDisplay}</p>
@@ -1792,7 +1857,7 @@
 
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-12">
                         <div class="lg:col-span-2">
-                            <p class="text-gold-500 text-sm tracking-[0.3em] uppercase mb-3">${car.brand === 'maybach' ? 'Mercedes-Maybach' : car.brand === 'rollsroyce' ? 'Rolls-Royce' : 'Bentley'}</p>
+                            <p class="text-gold-500 text-sm tracking-[0.3em] uppercase mb-3">${brandsMap[car.brand] || car.brand}</p>
                             <h1 class="font-serif text-4xl md:text-5xl text-white mb-6">${car.fullName}</h1>
                             <div class="w-24 h-px bg-gradient-to-r from-gold-500 to-transparent mb-8"></div>
 
